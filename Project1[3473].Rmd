@@ -198,7 +198,7 @@ str(cars)
 ```{r}
 # Review Market.Category values
 levels(cars$Market.Category)
-
+plyr::count(cars,'Market.Category')
 # There are too many levels (72) to convert "Market.Category" to Categorical/Factor. The values of the variable are potential correlated to MSRP and Popularity which is the main consideration of this analysis so the variable will NOT be dropped.  Instead, the Market.Category variable will be read for the 11 unique string descriptors which make up all 72 combinations (levels).  11 new boolean/logical variables will be created and hold the value of whether or not the descriptor of each records shows up in its original "Market.Category" value.
 
 pattern.Crossover <- paste("Crossover", collapse = "|")
@@ -253,10 +253,66 @@ cars2000$Transmission.Type <- droplevels(cars2000$Transmission.Type)
 
 
 ```
+##Ranjan 
+```{r}
+#visualizing MSRP distrubution
+hist(cars2000$MSRP,main="MSRP Distribution")  ### since this is heavily right skewed
+
+## to get appropriate model I would like to remove high priced vehicle that is more than million
+```
 
 ```{r}
+cars2000 <- cars2000[cars2000$MSRP>9000,]
+cars2000<- cars2000[cars2000$MSRP<1000000,]
+dim(cars2000)
 
+hist(cars2000$MSRP,main="MSRP Distribution")  ## this is better distribution of MSRP
+
+```
+   ## scatter plot for numeric variable
+```{r}
+pairs(~MSRP+Year+Popularity+Engine.HP+highway.MPG+city.mpg, data=cars2000)
+
+##Engine HP and MSRP is correlated 
+##city and highway mpg is highly correlated.
+
+```
+
+```{r}
+plyr::count(cars2000, 'Make')  
+## only 3 genesis,2 plymouth,3 spyker, 5 mclaren ,5 alfa romeo . this might create problem when we split data.
+```
+
+####    ##visualizing categorical variable#########################
+```{r}
+par(mar = c(5.5,15,4.1,2.1))
+barplot(plyr::count(cars2000,'Engine.Fuel.Type')[,2], names.arg=plyr::count(cars2000,'Engine.Fuel.Type')[,1], horiz=TRUE, col='red',las=1, main = "Engine fuel type")
+
+## more number of cars with regular unleaded gas
+```
+
+```{r}
+par(mar = c(5.1,4.5,4.1,2.1))
+barplot(plyr::count(cars2000,'Engine.Cylinders')[,2], names.arg=plyr::count(cars2000,'Engine.Cylinders')[,1], horiz=TRUE, col='red',las=2, main = 'Number of Cylinders')
+
+### 4,6,8 are highest cyclinders
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+par(mar = c(5.1,15,4.1,2.1))
+barplot(plyr::count(cars2000,'Transmission.Type')[,2], names.arg=plyr::count(cars2000,'Transmission.Type')[,1], horiz=TRUE, col='red',las=2, main = 'Transmission Type')
+barplot(plyr::count(cars2000,'Number.of.Doors')[,2], names.arg=plyr::count(cars2000,'Number.of.Doors')[,1], horiz=TRUE, col='red',las=2, main = 'Number of Doors')
+barplot(plyr::count(cars2000,'Driven_Wheels')[,2], names.arg=plyr::count(cars2000,'Driven_Wheels')[,1], horiz=TRUE, col='red',las=2, main = 'Driven Wheels')
+barplot(plyr::count(cars2000,'Vehicle.Size')[,2], names.arg=plyr::count(cars2000,'Vehicle.Size')[,1], horiz=TRUE, col='red',las=2, main = 'Vehicle Size')
+
+```
+
+
+```{r}
 # visualize change in car prices (MSRP) since 2000
+
 cars2000 %>%
   ggplot(aes(x = Year, y = MSRP)) +
     geom_point()
@@ -302,6 +358,9 @@ cars2000 %>%
 pairs((cars2000[,c(3,5,6,13,14,15,16)]))
 ggpairs((cars2000[,c(3,5,6,13,14,15,16)]))
 plot_num(cars2000)
+
+
+
 
 ```
 
