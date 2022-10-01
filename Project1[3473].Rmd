@@ -23,7 +23,13 @@ library(GGally)
 library(plyr)
 library(stringr)
 library(agricolae) ## for cv
-
+library(ggplot2)
+library(GGally)
+library(lindia)
+install.packages("AICcmodavg")
+library(AICcmodavg)
+install.packages("Metrics")
+library(Metrics)
 ```
 
 ```{r}
@@ -113,6 +119,16 @@ cars[c(9853:9855),5] <- 109
 cars_NA_EngineHP <- cars[is.na(cars$Engine.HP),]
 cars_NA_EngineHP
 
+
+
+# Manually look up and add missing "Engine Fuel Type" values
+cars_blank <- cars %>% filter(Engine.Fuel.Type < 1)
+
+# records 11323:11325 -> 2004 Suzuki Verona (3 trims)
+cars[c(11322:11324),4] <- "regular unleaded"
+
+
+
 ```
 
 ```{r}
@@ -170,14 +186,14 @@ summary(cars)
 
 # Convert applicable categorical variables to "factors"
 cars$Make <- as.factor(cars$Make)
-cars$Engine.Fuel.Type <- as.factor(cars$Engine.Fuel.Type)
-cars$Engine.Cylinders <- as.factor(cars$Engine.Cylinders)
-cars$Transmission.Type <- as.factor(cars$Transmission.Type)
-cars$Driven_Wheels <- as.factor(cars$Driven_Wheels)
-cars$Vehicle.Size <- as.factor(cars$Vehicle.Size)
-cars$Vehicle.Style <- as.factor(cars$Vehicle.Style)
-cars$Number.of.Doors <- as.factor(cars$Number.of.Doors)
-cars$Market.Category <- as.factor(cars$Market.Category)
+cars$Engine.Fuel.Type <- as.numeric(as.factor(cars$Engine.Fuel.Type))
+cars$Engine.Cylinders <- as.numeric(as.factor(cars$Engine.Cylinders))
+cars$Transmission.Type <- as.numeric(as.factor(cars$Transmission.Type))
+cars$Driven_Wheels <- as.numeric(as.factor(cars$Driven_Wheels))
+cars$Vehicle.Size <- as.numeric(as.factor(cars$Vehicle.Size))
+cars$Vehicle.Style <-as.numeric(as.factor(cars$Vehicle.Style))
+cars$Number.of.Doors <-as.numeric(as.factor(cars$Number.of.Doors))
+cars$Market.Category <-as.numeric(as.factor(cars$Market.Category))
 
 
 # Convert applicable numerical variables to "numeric"
@@ -277,10 +293,14 @@ pairs(~MSRP+Year+Popularity+Engine.HP+highway.MPG+city.mpg, data=cars2000)
 ##city and highway mpg is highly correlated.
 
 ```
-
+###dont include
 ```{r}
 plyr::count(cars2000, 'Make')  
 ## only 3 genesis,2 plymouth,3 spyker, 5 mclaren ,5 alfa romeo . this might create problem when we split data.
+par(mar = c(5.5,15,4.1,2.1))
+barplot(plyr::count(cars2000,'Make')[,2], names.arg=plyr::count(cars2000,'Make')[,1], horiz=TRUE, col='red',las=1, main = "Make")
+
+
 ```
 
 ####    ##visualizing categorical variable#########################
@@ -311,6 +331,12 @@ barplot(plyr::count(cars2000,'Vehicle.Size')[,2], names.arg=plyr::count(cars2000
 
 
 ```{r}
+par(mar = c(5.1,10,4.1,2.1))
+barplot(plyr::count(cars2000,'Vehicle.Style ')[,2], names.arg=plyr::count(cars2000,'Vehicle.Style ')[,1], horiz=TRUE, col='red',las=2, main = 'Vehicle Style ')
+
+```
+#######
+```{r}
 # visualize change in car prices (MSRP) since 2000
 
 cars2000 %>%
@@ -329,9 +355,9 @@ cars2000 %>%
   ggplot(aes(x = Engine.HP, y = log(MSRP))) +
   geom_point()
 
-##highway.mpg
+##highway.mpg ###log looks better
 cars2000 %>%
-  ggplot(aes(x =highway.MPG, y = log(MSRP))) +
+  ggplot(aes(x =log(highway.MPG), y = log(MSRP))) +
   geom_point()
 
 ##audi A6 row  837 from 354mpg  to 34 ##error 
@@ -381,7 +407,7 @@ valid <- cars2000[ss==3,]
 ```
 ## full model 
 ```{r}
-Fullmodel = lm (log(MSRP)~.,data = train)
+Fullmodel = lm (log(MSRP)~.-Make -Model,data = train)
 summary(Fullmodel)
 par(mfrow = c(2,2))
 plot(Fullmodel)
@@ -391,39 +417,147 @@ CV(Fullmodel)
 ```
 
 ## CV           AIC          AICc           BIC         AdjR2 
+ 
         ##  Inf -4.024610e+04 -4.005664e+04 -3.436392e+04  9.808313e-01 
 
+
 ```{r}
+# Fullmodelselect = ols_step_both_aic(Fullmodel,details=TRUE)
+# summary(Fullmodelselect)
+```
+
+###linear regression for numeric variables
+```{r}
+linearN <- lm(log(MSRP)~Year+Popularity+Engine.HP+highway.MPG+city.mpg+, data=train)
+summary(linearN)
+vif(linearN)
+summary(linearN)$r.squared
+
+## there city mpg and highway mpg is highly correlated .so either one of the variable can removed to make prediction
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(linearN)
 
 
 ```
 
-##feature selection technique
+
+##without city mpg
 ```{r}
-StepwiseModel = ols_step_both_p(Fullmodel, prem = 0.01, pent = 0.02, details = F, progress = T)
-StepwiseModel = StepwiseModel$model
-summary(StepwiseModel)
-CV(StepwiseModel)
+linearN1 <- lm(log(MSRP)~Year+Popularity+Engine.HP+city.mpg+Engine.Fuel.Type+Driven_Wheels+Engine.Cylinders+Make+highway.MPG+Transmission.Type+Vehicle.Size+Vehicle.Style+, data=train)
+summary(linearN1)
+
+# summary(linearN1)$r.squared
+# par(mfrow = c(2,2))
+# plot(linearN1)
+gg_diagnose(linearN1)
+```
+
+
+###selection of variable
+```{r}
+linearn1select =ols_step_both_p(Fullmodel, prem = 0.01, pent = 0.02, details = F, progress = T)
+summary(linearn1select)
 
 ```
 
 ```{r}
+linearn1F =ols_step_forward_p(Fullmodel, penter = 0.02, details = TRUE)
+summary(linearn1F)
+
+```
+
+```{r}
+linearnB = ols_step_backward_p(Fullmodel,fit, prem = 0.01,details=TRUE)
+summary(linearnB)
+
+```
+
+```{r}
+#predictforward <- predict(linearn1F,newdata=test)
+
+```
+
+```{r}
+modelstep <- lm(log(MSRP)~Performance + Transmission.Type + Year + Diesel 
++ Vehicle.Style 
++ Hatchback 
++ Hybrid 
++ Driven_Wheels 
++ FactoryTuner 
++ city.mpg 
++ Engine.Cylinders 
++ Crossover 
++ Engine.Fuel.Type 
++ FlexFuel 
++ Market.Category 
++ Popularity 
++ highway.MPG,data=train)
+summary(modelstep)
+```
+
+```{r}
+modelforward <-lm(log(MSRP)~ Engine.HP 
++ Exotic 
++ Luxury 
++ Performance 
++ Transmission.Type 
++ Year 
++ Diesel 
++ Vehicle.Style 
++ Hatchback 
++ Hybrid 
++ Driven_Wheels 
++ FactoryTuner 
++ city.mpg 
++ Engine.Cylinders 
++ Crossover 
++ Engine.Fuel.Type 
++ FlexFuel 
++ Market.Category 
++ Popularity 
++ highway.MPG,data=train)
+summary(modelforward)
+```
+##backward removed Number of doors and vehicle size
+```{r}
+modelbackward <- lm(log(MSRP)~.-Number.of.Doors-Vehicle.Size-Model-Make,data=train) 
+summary(modelbackward)
+```
+
+```{r}
+#define list of models 
+models <- list(modelstep, modelforward, modelbackward)
+
+#specify model names
+mod.names <- c('stepwise_selection', 'forward_selection', 'backward_selection')
+
+#calculate AIC of each model
+aictab(cand.set = models, modnames = mod.names)
+
+```
+
+```{r}
+Predict_Stepwise = predict(modelstep,test)
+Predict_Stepwise = exp(Predict_Stepwise)
+Predict_Stepwise = as.data.frame(Predict_Stepwise)
+StepwisePredicted = cbind(test$MSRP,Predict_Stepwise)
+names(Predict_Stepwise)[1] = "test"
+names(Predict_Stepwise)[2] = "prediction"
 
 
 ```
 
 ```{r}
+confusionMatrix(Predict_Stepwise$prediction,reference = Predict_Stepwise$test)
+
+str(Predict_Stepwise)
+str(test$MSRP)
+
+sse(test$MSRP,Predict_Stepwise$prediction)
 
 
-```
 
-```{r}
-
-
-```
-
-```{r}
-
-
-```
 
