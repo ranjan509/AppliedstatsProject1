@@ -420,7 +420,7 @@ pairs(~MSRP+Year+Popularity+Engine.HP+highway.MPG+city.mpg+Engine.Cylinders, dat
 ## city and highway mpg is highly correlated.
 
 
-## to get appropriate model I would like to remove high priced vehicle that is more than million
+## to get appropriate model we would like to remove high priced vehicle that is more than million
 
 cars2000 <- cars2000[cars2000$MSRP>9000,]
 cars2000<- cars2000[cars2000$MSRP<1000000,]
@@ -467,7 +467,7 @@ cars2000 %>%
 
 # highway.mpg ###log looks better
 cars2000 %>%
-  ggplot(aes(x =log(highway.MPG), y = log(MSRP))) +
+  ggplot(aes(x =highway.MPG, y = log(MSRP))) +
   geom_point()
 
 # citympg
@@ -486,6 +486,8 @@ pairs((cars2000[,c(1,2,3,4,10,11,12,13)]))
 ggpairs((cars2000[,c(1,2,3,4,10,11,12,13)]))
 plot_num(cars2000)
 
+
+
 ```
 
 
@@ -498,7 +500,7 @@ plot_num(cars2000)
 cars2KT <- cars %>% filter(cars$Year>2000)
 
 cars2KT = subset(cars2KT, select = -c(Model, Market.Category))
-view(cars2KT)
+#view(cars2KT)
 ```
 
 ```{r}
@@ -508,16 +510,64 @@ train1 <- cars2KT[ss==1,]
 test1 <- cars2KT[ss==2,]
 valid1 <- cars2KT[ss==3,]
 
-##complex linear model
-model2 <- lm(log(MSRP)~.,data=train1)
-summary(model2)
-AIC(model2)
 
-##Complex MLR
+# head(train1)
+# ##complex linear model
+# model2 <- lm(log(MSRP)~.,data=train1)
+# summary(model2)
+# AIC(model2)
+
+# ols_step_both_aic(model2)
+###ols_step_best_subset(model2) takes time to run
+```
+
+##model with interaction
+```{r}
+modelI<-lm(log(MSRP)~Make+Year+Engine.Fuel.Type+Engine.HP+Engine.Cylinders+Transmission.Type+Driven_Wheels+Number.of.Doors+highway.MPG+city.mpg+ Popularity+Crossover+Diesel+Exotic+Luxury+Performance+FactoryTuner+FlexFuel+Hatchback+Hybrid+
+          Engine.HP:Engine.Cylinders+Year:city.mpg,data=train1 )
+
+summary(modelI)
+AIC(modelI)
+ols_step_both_aic(modelI)
+###ols_step_best_subset(model2) takes time to run
+
+```
+
+###making prediction with interaction model
+```{r}
+Predict_I= predict(modelI,test1)
+Predict_I = exp(Predict_I)
+Predict_I= as.data.frame(Predict_I)
+Predicted_I_N = cbind(test$MSRP,Predict_I)
+names(Predicted_I_N)[1] = "test"
+names(Predicted_I_N)[2] = "prediction"
+```
+##metrics of interaction model
+```{r}
+SSE_I <- sse(Predicted_I_N$test, Predicted_I_N$prediction)
+SSE_I
+
+MSE_I <- mse(Predicted_I_N$test, Predicted_I_N$prediction)
+MSE_I 
+
+AdjR2_I <- 1-(MSE_Step/var(Predicted_I_N$test))
+AdjR2_I
+
+
+```
+
+##plot actual vs predicted value Interaction
+```{r}
+plot(Predicted_I_N$test, Predicted_I_N$prediction, xlab = "Acutal test value",ylab="Interaction predicted value")
+abline(lm(Predicted_I_N$test~Predicted_I_N$prediction))
+
+```
+##try 
+```{r}
 fitcontrol <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 fit.glm = train(log(MSRP)~., data = train1, method="glmnet", trControl=fitcontrol,
                    tuneGrid=expand.grid(data.frame(alpha=1,lambda=seq(0,.05,.0001))))
-fit.glm
+print(fit.glm)
 AIC(fit.glm)
 
 plot(fit.glm)
@@ -555,21 +605,56 @@ bestlambda
 
 ```{r}
 lasso.pred=predict (lasso.mod ,s=bestlambda ,newx=xtest)
-
+lasso.pred
 ```
 
 ```{r}
 testMSE_LASSO<-mean((ytest-lasso.pred)^2)
 testMSE_LASSO
 
-
+##0.03036748 ASE(MSE)
 ```
 
+###MSE
+```{r}
+lasso.pred =exp(lasso.pred)
+lasso.pred= as.data.frame(lasso.pred)
+LPredicted = cbind(test1$MSRP,lasso.pred)
+names(LPredicted)[1] = "test"
+names(LPredicted)[2] = "prediction"
+# head(LPredicted)
+# view(LPredicted)
+
+mean((LPredicted$test-LPredicted$prediction)^2)
+ ##312204479
+```
+
+##metrics of lassomodel
+```{r}
+SSE_L <- sse(LPredicted$test,LPredicted$prediction)
+SSE_L
+
+MSE_L <- mse(LPredicted$test, LPredicted$prediction)
+MSE_L 
+
+AdjR2_L <- 1-(MSE_Step/var(LPredicted$test))
+AdjR2_L
+
+```
 
 ```{r}
 coef(lasso.mod,s=bestlambda)
 
 ```
+
+
+##plot actual vs predicted value laSSO
+```{r}
+plot(test1$MSRP,LPredicted$prediction, xlab = "Acutal test value",ylab="Lasso predicted value")
+abline(lm(test1$MSRP~LPredicted$prediction))
+
+```
+
 
 
 ###obj 2 Knn
@@ -589,6 +674,39 @@ names(KNNPredicted)[1] = "test"
 names(KNNPredicted)[2] = "prediction"
 
 
+
+#head(KNNPredicted)
+## calcaulte MSE
+#mean((KNNPredicted$test-KNNPredicted$prediction)^2)
+# 95373406
 ```
 
+##metrics of knn
+```{r}
+SSE_K <- sse(KNNPredicted$test,KNNPredicted$prediction)
+SSE_K
 
+MSE_K <- mse(KNNPredicted$test, KNNPredicted$prediction)
+MSE_K 
+
+AdjR2_K <- 1-(MSE_Step/var(KNNPredicted$test))
+AdjR2_K
+
+```
+
+##plot
+```{r}
+plot(test1$MSRP,KNNPredicted$prediction, xlab = "Acutal test value",ylab="KNN predicted value")
+
+abline(lm(test1$MSRP~KNNPredicted$prediction))
+
+
+```
+
+```{r}
+# PRESS <- function(model) {
+#     i <- residuals(model)/(1 - lm.influence(model)$hat)
+#     sum(i^2)
+# }
+# PRESS(model2)
+# PRESS(m1)
