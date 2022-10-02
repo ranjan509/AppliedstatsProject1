@@ -512,7 +512,7 @@ ss1 <- sample(1:3,size=nrow(cars2KT),replace=TRUE,prob=c(0.8,0.1,0.1))
 train1 <- cars2KT[ss==1,]
 test1 <- cars2KT[ss==2,]
 valid1 <- cars2KT[ss==3,]
-
+view(train1)
 
 # head(train1)
 # ##complex linear model
@@ -574,6 +574,23 @@ AdjR2_I
 
 
 ```
+## validation set prediction by inteaction model
+```{r}
+valid1<- valid1[!(valid1$Make %in% c("Plymouth")),] ### Need to drop Plymouth make because it was only on validation set
+Predict_IV = predict(modelI,valid1)
+Predict_IV = exp(Predict_IV)
+Predict_IV= as.data.frame(Predict_IV)
+Predicted_I_NV = cbind(valid1$MSRP,Predict_IV)
+names(Predicted_I_NV)[1] = "test"
+names(Predicted_I_NV)[2] = "prediction"
+
+
+```
+
+
+
+
+
 
 ##plot actual vs predicted value Interaction
 ```{r}
