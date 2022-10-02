@@ -279,8 +279,10 @@ Fullmodel = lm(log(MSRP)~.,data = train)
 summary(Fullmodel)
 par(mfrow = c(2,2))
 plot(Fullmodel)
-
+CV(Fullmodel)
 ```
+
+
 
 ```{r}
 
@@ -493,7 +495,7 @@ plot_num(cars2000)
 ```
 
 
-###obj 2##########
+                               ###OBJECTIVE2##########
 
 
 ```{r}
@@ -512,7 +514,7 @@ ss1 <- sample(1:3,size=nrow(cars2KT),replace=TRUE,prob=c(0.8,0.1,0.1))
 train1 <- cars2KT[ss==1,]
 test1 <- cars2KT[ss==2,]
 valid1 <- cars2KT[ss==3,]
-view(train1)
+#view(train1)
 
 # head(train1)
 # ##complex linear model
@@ -522,34 +524,31 @@ view(train1)
 cor(train$highway.MPG,train$city.mpg) ##0.9428157
 cor(train$Engine.HP,train$Engine.Cylinders)## 0.7859781
 
-mpgc <- train$city.mpg-mean(train$city.mpg)
-mpgh <- train$highway.MPG-mean(train$highway.MPG)
+# mpgc <- train$city.mpg-mean(train$city.mpg)
+# mpgh <- train$highway.MPG-mean(train$highway.MPG)
 
 ##creating interaction variable.names
-totalmpg <- mpgc *mpgh 
+#totalmpg <- mpgc *mpgh 
 
 # ols_step_both_aic(model2)
 ###ols_step_best_subset(model2) takes time to run
 ```
-### model after centering city and highwaympg
-```{r}
-modelI2<-lm(log(MSRP)~Make+Year+Engine.Fuel.Type+Engine.HP+Engine.Cylinders+Transmission.Type+Driven_Wheels+Number.of.Doors+highway.MPG+city.mpg+ Popularity+Crossover+Diesel+Exotic+Luxury+Performance+FactoryTuner+FlexFuel+Hatchback+Hybrid+
-          Engine.HP:Engine.Cylinders+totalmpg,data=train1 )
-summary(modelI2)
-AIC(modelI2) ##same AIC result as modelI
 
-```
 
-##model with interaction
+
+        #########################################   model with interaction##############################
 ```{r}
+
 modelI<-lm(log(MSRP)~Make+Year+Engine.Fuel.Type+Engine.HP+Engine.Cylinders+Transmission.Type+Driven_Wheels+Number.of.Doors+highway.MPG+city.mpg+ Popularity+Crossover+Diesel+Exotic+Luxury+Performance+FactoryTuner+FlexFuel+Hatchback+Hybrid+
           Engine.HP:Engine.Cylinders+highway.MPG:city.mpg,data=train1 )
-
 summary(modelI)
 AIC(modelI)
 ols_step_both_aic(modelI)
-###ols_step_best_subset(model2) takes time to run
+```
 
+```{r}
+par(mfrow = c(2,2))
+plot(modelI)              s## residual plot is somewhat normal distribution . There is no points that is low residual and high leverage. The model looks good
 ```
 
 ###making prediction with interaction model
@@ -572,25 +571,34 @@ MSE_I
 AdjR2_I <- 1-(MSE_Step/var(Predicted_I_N$test))
 AdjR2_I
 
-
 ```
 ## validation set prediction by inteaction model
 ```{r}
 valid1<- valid1[!(valid1$Make %in% c("Plymouth")),] ### Need to drop Plymouth make because it was only on validation set
+
 Predict_IV = predict(modelI,valid1)
 Predict_IV = exp(Predict_IV)
 Predict_IV= as.data.frame(Predict_IV)
 Predicted_I_NV = cbind(valid1$MSRP,Predict_IV)
-names(Predicted_I_NV)[1] = "test"
+names(Predicted_I_NV)[1] = "valid"
 names(Predicted_I_NV)[2] = "prediction"
 
 
 ```
 
+##metrics of interaction model FOR Validation set
+```{r}
+SSE_I <- sse(Predicted_I_NV$valid, Predicted_I_NV$prediction)
+SSE_I
+
+MSE_I <- mse(Predicted_I_NV$valid, Predicted_I_NV$prediction)
+MSE_I 
+
+AdjR2_I <- 1-(MSE_Step/var(Predicted_I_NV$valid1))
+AdjR2_I
 
 
-
-
+```
 
 ##plot actual vs predicted value Interaction
 ```{r}
@@ -614,7 +622,7 @@ coef(fit.glm$finalModel,penalty)
 
 ```
 
-##lasso
+################################LASSO###############################################
 ```{r}
 
 x=model.matrix(MSRP~.,train1)[,-1]
@@ -623,7 +631,8 @@ y=log(train1$MSRP)
 xtest<-model.matrix(MSRP~.,test1)[,-1]
 ytest<-log(test1$MSRP)
 
-
+xvalid<-model.matrix(MSRP~.,valid1)[,-1]    ##for validation set
+yvalid<-log(valid1$MSRP)
 
 grid=10^seq(10,-2, length =100)
 lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
@@ -683,6 +692,35 @@ coef(lasso.mod,s=bestlambda)
 
 ```
 
+## validation set prediction by lasso model
+```{r}
+
+
+lasso.predV=predict (lasso.mod ,s=bestlambda ,newx=xvalid)
+lasso.predV =exp(lasso.predV)
+lasso.predV= as.data.frame(lasso.predV)
+LPredictedV = cbind(valid1$MSRP,lasso.predV)
+names(LPredictedV)[1] = "valid"
+names(LPredictedV)[2] = "prediction"
+
+```
+
+##metrics of Lasso model FOR Validation set
+```{r}
+SSE_I <- sse(LPredictedV$valid, LPredictedV$prediction)
+SSE_I
+
+MSE_I <- mse(LPredictedV$valid, LPredictedV$prediction)
+MSE_I 
+
+AdjR2_I <- 1-(MSE_Step/var(LPredictedV$valid1))
+AdjR2_I
+
+
+```
+
+
+
 
 ##plot actual vs predicted value laSSO
 ```{r}
@@ -693,7 +731,7 @@ abline(lm(test1$MSRP~LPredicted$prediction))
 
 
 
-###obj 2 Knn
+                    #########obj 2 KNN###################
 
 ```{r}
 m1 <-train(log(MSRP)~.,data=train1,method='knn')
@@ -732,6 +770,34 @@ AdjR2_K
 
 ```
 
+## validation set prediction by KNN model
+```{r}
+##valid1<- valid1[!(valid1$Make %in% c("Plymouth")),] ### Need to drop Plymouth make because it was only on validation set 
+
+test_predV <- predict(m1, newdata = valid1)
+test_predV= exp(test_predV)
+test_predV= as.data.frame(test_predV)
+KNNPredictedV= cbind(valid1$MSRP,test_predV)
+names(KNNPredictedV)[1] = "valid"
+names(KNNPredictedV)[2] = "prediction"
+
+
+```
+
+##metrics of knn for validation set
+```{r}
+SSE_K <- sse(KNNPredictedV$valid,KNNPredictedV$prediction)
+SSE_K
+
+MSE_K <- mse(KNNPredictedV$valid, KNNPredictedV$prediction)
+MSE_K 
+
+AdjR2_K <- 1-(MSE_Step/var(KNNPredictedV$valid))
+AdjR2_K
+
+
+
+```
 ##plot
 ```{r}
 plot(test1$MSRP,KNNPredicted$prediction, xlab = "Acutal test value",ylab="KNN predicted value")
@@ -740,11 +806,11 @@ abline(lm(test1$MSRP~KNNPredicted$prediction))
 
 
 ```
-#confusion metrics
+
 ```{r}
 
 ```
-
+###############
 ```{r}
 PRESS <- function(model) {
     i <- residuals(model)/(1 - lm.influence(model)$hat)
