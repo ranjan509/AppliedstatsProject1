@@ -1,0 +1,848 @@
+---
+title: "Project 1"
+team: Andrew, Nicole, Ranjan
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+
+library(naniar)
+library(caret)
+library(ggplot2)
+library(mlbench)
+library(glmnet)
+library(olsrr)
+library(fmsb)
+library(corrplot)
+library(RColorBrewer)
+library(funModeling)
+library(tidyverse)
+library(tidyr)
+library(Hmisc)
+library(kableExtra)
+library(GGally)
+library(plyr)
+library(stringr)
+library(agricolae)
+library(ggplot2)
+library(GGally)
+library(lindia)
+library(AICcmodavg)
+library(Metrics)
+library(car)
+library(psych)
+
+```
+
+```{r}
+
+# Read in data
+cars <- read.csv("data1.csv",stringsAsFactors = T)
+
+# view data summary
+#summary(cars)
+
+# view records with N/A's for review
+cars_NA <- cars %>% filter_all(any_vars(is.na(.)))
+#cars_NA
+
+# N/A's identified in Engine HP(69), Engine Cylinders(30), & Number of Doors(6)
+
+```
+
+```{r}
+
+# Manually look up and add missing Engine HP values
+
+cars_NA_EngineHP <- cars[is.na(cars$Engine.HP),]
+#cars_NA_EngineHP
+
+# records 540 to 542 -> 2015, 2016, 2017 FIAT 500e -> 111 Hp
+cars[c(540:542),5] <- 111
+
+# records 2906 to 2909 -> 2017 Lincoln Continental (4 different trims) -> 305, 400, 335, 305 Hp
+cars[c(2906:2909),5] <- c(305,400,335,305)
+
+# records 4204 to 4207 -> 2017 Ford Escape (4 different trims) -> 168 Hp
+cars[c(4204:4207),5] <- 168
+
+# records 4706 to 4707 -> 2013, 2014 Honda Fit -> 123 Hp
+cars[c(4706:4707),5] <- 123
+
+# records 4915 to 4920 -> 2005 Ford Freestar (6 different trims) -> 193 Hp
+cars[c(4915:4920),5] <- 193
+
+# records 4786 to 4799 -> 2015, 2016, 2017 Ford Focus -> 143 Hp
+cars[c(4786:4799),5] <- 143
+
+# record 5779 -> 2014 Mitsubishi i-MiEV -> 66 Hp
+cars[c(5779),5] <- 66
+
+# records 5826 to 5841 -> 2015, 2016, 2017 Chevy Imapala (2 trims per year) -> 301 Hp
+cars[c(5826:5841),5] <- 301
+
+# records 6386 to 6395 -> 2014 to 2016 Nissan Leaf (3 trims per year) -> 107 Hp
+cars[c(6386:6395),5] <- 107
+
+# record 6579 -> 2015 Mercedes M-Class -> 200 Hp
+cars[c(6579),5] <- 200
+
+# record 6909 -> 2017 Lincoln MKZ (trim 1) -> 240 Hp
+cars[c(6909),5] <- 240
+
+# record 6911 -> 2017 Lincoln MKZ (trim 2) -> 350 Hp
+cars[c(6911),5] <- 350
+
+# record 6917 -> 2017 Lincoln MKZ (trim 3) -> 350 Hp
+cars[c(6917),5] <- 350
+
+# record 6919 -> 2017 Lincoln MKZ (trim 4) -> 400 Hp
+cars[c(6919),5] <- 400
+
+# records 6922 to 6925 -> 2014 Tesla Model S (4 trims) -> 362, 302, 691, 416 Hp
+cars[c(6922:6925),5] <- c(362,302,691,416)
+
+# records 6926 to 6930 -> 2015 Tesla Model S (5 trims) -> 323, 380, 691, 422, 380 Hp
+cars[c(6926:6930),5] <- c(323,380,691,422,380)
+
+# records 6931 to 6939 -> 2016 Tesla Model S (9 trims) -> 382, 315, 762, 422, 328, 422, 518, 691, 382 Hp
+cars[c(6931:6939),5] <- c(382,315,762,422,328,422,518,691,382)
+
+# record 8375 to 8376 -> 2013, 2014 Toyota RAV4 EV -> 154 Hp
+cars[c(8375:8376),5] <- 154
+
+# record 9851 to 9852 -> 2015 Kia Soul EV (2 trims) -> 154 Hp
+cars[c(9851:9852),5] <- 154
+
+# record 9853 to 9855 -> 2016 Kia Soul EV (3 trims) -> 109 Hp
+cars[c(9853:9855),5] <- 109
+
+# Verify no more NA's
+cars_NA_EngineHP <- cars[is.na(cars$Engine.HP),]
+#cars_NA_EngineHP
+
+# Manually look up and add missing "Engine Fuel Type" values
+cars_blank <- cars %>% filter(Engine.Fuel.Type < 1)
+
+# records 11323:11325 -> 2004 Suzuki Verona (3 trims)
+cars[c(11322:11324),4] <- "regular unleaded"
+
+# Manually look up and add missing and "odd" Engine HP values
+cars_NA_EngineCylinder <- cars[is.na(cars$Engine.Cylinders),]
+#cars_NA_EngineCylinder
+
+# Input value of "Elec" for all electric vehicles (Engine.Fuel.Type = electric)
+cars <- within(cars, Engine.Cylinders[Engine.Fuel.Type == 'electric'] <- 0)
+
+# Change Cylinder to categorical variable
+cars$Engine.Cylinders <- as.factor(cars$Engine.Cylinders)
+
+# Change Engine Cylinders value of Mazda RX-7 cars (rotary engine) to piston equivalent -> 6
+cars[c(8696:8698),6] <- 6
+
+# Change Engine Cylinders value of Mazda RX-8 cars (rotary engine) to piston equivalent -> 8
+cars[c(8699:8715),6] <- 8
+
+# Verify no more NA's
+cars_NA_EngineCylinders <- cars[is.na(cars$Engine.Cylinders),]
+#cars_NA_EngineCylinders
+
+# Manually look up and add missing "Number of Doors" values
+cars_NA_Doors <- cars[is.na(cars$Number.of.Doors),]
+#cars_NA_Doors
+
+# record 4667 -> 2013 Ferrari FF has 2 Doors
+cars[c(4667),9] <- 2
+
+# records 6931 to 6935 -> 2016 Tesla Model S has 4 Doors
+cars[c(6931:6935),9] <- 4
+
+#audi A6 row  837 from 354mpg  to 34 ##error 
+cars[c(1120),13] <- 34
+
+# Verify no more NA's
+cars_NA_Doors <- cars[is.na(cars$Number.of.Doors),]
+#cars_NA_Doors
+
+```
+
+```{r}
+
+# Verify ALL NA's have been changed
+cars_NA <- cars %>% filter_all(any_vars(is.na(.)))
+#cars_NA
+#summary(cars)
+
+```
+
+```{r}
+
+# Convert applicable categorical variables to "factors"
+cars$Make <- as.factor(cars$Make)
+cars$Engine.Fuel.Type <- as.numeric(as.factor(cars$Engine.Fuel.Type))
+cars$Transmission.Type <- as.numeric(as.factor(cars$Transmission.Type))
+cars$Driven_Wheels <- as.numeric(as.factor(cars$Driven_Wheels))
+cars$Vehicle.Size <- as.numeric(as.factor(cars$Vehicle.Size))
+cars$Vehicle.Style <-as.numeric(as.factor(cars$Vehicle.Style))
+cars$Market.Category <-as.factor(cars$Market.Category)
+
+# Convert applicable numerical variables to "numeric"
+cars$Year <- as.numeric(cars$Year)
+cars$Engine.HP <- as.numeric(cars$Engine.HP)
+cars$highway.MPG <- as.numeric(cars$highway.MPG)
+cars$city.mpg <- as.numeric(cars$city.mpg)
+cars$Popularity <- as.numeric(cars$Popularity)
+cars$MSRP <- as.numeric(cars$MSRP)
+cars$Number.of.Doors <-as.numeric(cars$Number.of.Doors)
+cars$Engine.Cylinders <- as.numeric(cars$Engine.Cylinders)
+
+# Verify variable data types
+#str(cars)
+#summary(cars)
+
+# Too many levels to convert "Model" to Categorical/Factor.  This variable will not be considered in the analysis due to it's inherent correlation to "Make".
+
+```
+
+```{r}
+# Review Market.Category values
+#levels(cars$Market.Category)
+plyr::count(cars,'Market.Category')
+
+# There are too many levels (72) to convert "Market.Category" to Categorical/Factor. The values of the variable are potential correlated to MSRP and Popularity which is the main consideration of this analysis so the variable will NOT be dropped.  Instead, the Market.Category variable will be read for the 11 unique string descriptors which make up all 72 combinations (levels).  11 new boolean/logical variables will be created and hold the value of whether or not the descriptor of each records shows up in its original "Market.Category" value.
+
+pattern.Crossover <- paste("Crossover", collapse = "|")
+pattern.Diesel <- paste("Diesel", collapse = "|")
+pattern.Exotic <- paste("Exotic", collapse = "|")
+pattern.Luxury <- paste("Luxury", collapse = "|")
+pattern.Performance <- paste("Performance", collapse = "|")
+pattern.FactoryTuner <- paste("Factory Tuner", collapse = "|")
+pattern.FlexFuel <- paste("Flex Fuel", collapse = "|")
+pattern.Hatchback <- paste("Hatchback", collapse = "|")
+pattern.Hybrid <- paste("Hybrid", collapse = "|")
+
+cars$Crossover <- grepl(pattern.Crossover, cars$Market.Category)
+cars$Diesel <- grepl(pattern.Diesel, cars$Market.Category)
+cars$Exotic <- grepl(pattern.Exotic, cars$Market.Category)
+cars$Luxury <- grepl(pattern.Luxury, cars$Market.Category)
+cars$Performance <- grepl(pattern.Performance, cars$Market.Category)
+cars$FactoryTuner <- grepl(pattern.FactoryTuner, cars$Market.Category)
+cars$FlexFuel <- grepl(pattern.FlexFuel, cars$Market.Category)
+cars$Hatchback <- grepl(pattern.Hatchback, cars$Market.Category)
+cars$Hybrid <- grepl(pattern.Hybrid, cars$Market.Category)
+
+cars$Crossover <- as.numeric(as.factor(cars$Crossover))
+cars$Diesel <- as.numeric(as.factor(cars$Diesel))
+cars$Exotic <- as.numeric(as.factor(cars$Exotic))
+cars$Luxury <- as.numeric(as.factor(cars$Luxury))
+cars$Performance <- as.numeric(as.factor(cars$Performance))
+cars$FactoryTuner <- as.numeric(as.factor(cars$FactoryTuner))
+cars$FlexFuel <-as.numeric(as.factor(cars$FlexFuel))
+cars$Hatchback <-as.numeric(as.factor(cars$Hatchback))
+cars$Hybrid <-as.numeric(as.factor(cars$Hybrid))
+
+#summary(cars)
+
+```
+
+```{r}
+
+cars2000 <- cars %>% filter(cars$Year>2000)
+
+# drop variables to that allow for simpler final interpretation and increased analysis speed
+
+cars2000 = subset(cars2000, select = -c(Make, Model, Market.Category, Crossover, Diesel, Exotic, Luxury, Performance, FactoryTuner, FlexFuel, Hatchback, Hybrid))
+
+# 10,257 of the original 11,914 remain
+#summary(cars2000)
+
+```
+
+
+```{r}
+# set seed
+set.seed(123)
+
+# Split data into smaller sets: 80% training, 10% test, and 10% validate
+ss <- sample(1:3,size=nrow(cars2000),replace=TRUE,prob=c(0.8,0.1,0.1))
+train <- cars2000[ss==1,]
+test <- cars2000[ss==2,]
+valid <- cars2000[ss==3,]
+
+```
+
+
+```{r}
+
+# full model
+Fullmodel = lm(log(MSRP)~.,data = train)
+summary(Fullmodel)
+par(mfrow = c(2,2))
+plot(Fullmodel)
+
+```
+
+
+
+```{r}
+
+# variable selections - step-wise
+
+linearn1select =ols_step_both_p(Fullmodel, prem = 0.01, pent = 0.01, details = F, progress = T)
+summary(linearn1select)
+
+```
+
+```{r}
+linearn1F = ols_step_forward_p(Fullmodel, pent = 0.01, details = F, progress = T)
+#summary(linearn1F)
+
+```
+
+```{r}
+linearnB = ols_step_backward_p(Fullmodel,fit, prem = 0.01, details = F, progress = T)
+#summary(linearnB)
+
+```
+
+```{r}
+modelstep <- lm(log(MSRP) ~ Transmission.Type + city.mpg + Number.of.Doors + Driven_Wheels + Popularity + Engine.Fuel.Type, data=train)
+                
+summary(modelstep)
+
+```
+
+```{r}
+
+modelforward <-lm(log(MSRP)~ Engine.Cylinders + Transmission.Type + city.mpg + Number.of.Doors + Driven_Wheels + Popularity + Engine.Fuel.Type ,data=train)
+
+summary(modelforward)
+
+```
+
+```{r}
+
+modelbackward <- lm(log(MSRP)~ . -Year -Vehicle.Style -highway.MPG -Engine.Cylinders -Vehicle.Size ,data=train) 
+
+summary(modelbackward)
+
+```
+
+```{r}
+
+#define list of models 
+models <- list(modelstep, modelforward, modelbackward)
+
+#specify model names
+mod.names <- c('stepwise_selection', 'forward_selection', 'backward_selection')
+
+#calculate AIC of each model
+aictab(cand.set = models, modnames = mod.names)
+
+```
+
+```{r}
+Predict_Stepwise = predict(modelstep,test)
+Predict_Stepwise = exp(Predict_Stepwise)
+Predict_Stepwise = as.data.frame(Predict_Stepwise)
+StepwisePredicted = cbind(test$MSRP,Predict_Stepwise)
+names(StepwisePredicted)[1] = "test"
+names(StepwisePredicted)[2] = "prediction"
+
+Predict_Forward = predict(modelforward,test)
+Predict_Forward = exp(Predict_Forward)
+Predict_Forward = as.data.frame(Predict_Forward)
+ForwardPredicted = cbind(test$MSRP,Predict_Forward)
+names(ForwardPredicted)[1] = "test"
+names(ForwardPredicted)[2] = "prediction"
+
+Predict_Backward = predict(modelbackward,test)
+Predict_Backward = exp(Predict_Backward)
+Predict_Backward = as.data.frame(Predict_Backward)
+BackwardPredicted = cbind(test$MSRP,Predict_Backward)
+names(BackwardPredicted)[1] = "test"
+names(BackwardPredicted)[2] = "prediction"
+
+```
+
+```{r}
+
+MSE_Step <- mse(StepwisePredicted$test, StepwisePredicted$prediction)
+MSE_Fwd <- mse(ForwardPredicted$test, ForwardPredicted$prediction)
+MSE_Back <- mse(BackwardPredicted$test, BackwardPredicted$prediction)
+
+AdjR2_Step <- 1-(MSE_Step/var(StepwisePredicted$test))
+AdjR2_Fwd <- 1-(MSE_Fwd/var(ForwardPredicted$test))
+AdjR2_Back <- 1-(MSE_Back/var(BackwardPredicted$test))
+
+MSE_Step
+MSE_Fwd
+MSE_Back
+AdjR2_Step
+AdjR2_Fwd
+AdjR2_Back
+
+```
+
+                               ###OBJECTIVE2##########
+
+```{r}
+
+
+cars2KT <- cars %>% filter(cars$Year>2000)
+
+cars2KT = subset(cars2KT, select = -c(Model, Market.Category))
+
+#view(cars2KT)
+```
+
+```{r}
+
+
+##split data set again
+ss1 <- sample(1:3,size=nrow(cars2KT),replace=TRUE,prob=c(0.8,0.1,0.1))
+train1 <- cars2KT[ss==1,]
+test1 <- cars2KT[ss==2,]
+valid1 <- cars2KT[ss==3,]
+#view(train1)
+
+# head(train1)
+# ##complex linear model
+# model2 <- lm(log(MSRP)~.,data=train1)
+# summary(model2)
+# AIC(model2)
+cor(train1$highway.MPG,train1$city.mpg) ##0.9428157
+cor(train1$Engine.HP,train1$Engine.Cylinders)## 0.7859781
+
+
+# mpgc <- train$city.mpg-mean(train$city.mpg)
+# mpgh <- train$highway.MPG-mean(train$highway.MPG)
+
+##creating interaction variable.names
+#totalmpg <- mpgc *mpgh 
+
+# ols_step_both_aic(model2)
+### ols_step_best_subset(model2) takes time to run
+```
+```{r}
+
+carsTypes = subset(cars, select = c(MSRP, Crossover, Diesel, Exotic, Luxury, Performance, FactoryTuner, FlexFuel, Hatchback, Hybrid))
+
+carsTypes %>%
+  gather(-MSRP, key = "var", value = "value") %>%
+  ggplot(aes(x = value, y = log(MSRP))) +
+    facet_wrap(~var, scales = "free") +
+  geom_boxplot()+
+  ylim(9, 13)
+
+# log of highway mpg * city mpg to 3nd order
+cars2KT %>%
+  ggplot(aes(x = log(Engine.HP*Engine.Cylinders), y = log(MSRP))) +
+  geom_point() + 
+  stat_smooth(method="lm", se=TRUE, fill=NA, formula=y ~ poly(x, 3, raw=TRUE),colour="red")
+
+# log of highway mpg * city mpg to 2nd order
+cars2KT %>%
+  ggplot(aes(x = log(highway.MPG*city.mpg), y = log(MSRP))) +
+  geom_point() + 
+  stat_smooth(method="lm", se=TRUE, fill=NA, formula=y ~ poly(x, 2, raw=TRUE),colour="red")
+
+# Popularity
+cars2KT %>%
+  ggplot(aes(x = sqrt(Popularity), y = log(MSRP))) +
+  geom_point() + 
+  stat_smooth(method="lm", se=TRUE, fill=NA, formula=y ~ poly(x, 2, raw=TRUE),colour="red")
+
+
+```
+
+
+
+        #########################################   model with interaction##############################
+```{r}
+
+modelI<-lm(log(MSRP)~Make+Year+Engine.Fuel.Type+Engine.HP+Engine.Cylinders+Transmission.Type+Driven_Wheels+Number.of.Doors+highway.MPG+city.mpg+ Popularity+Crossover+Diesel+Exotic+Luxury+Performance+FactoryTuner+FlexFuel+Hatchback+Hybrid+Engine.HP*Engine.Cylinders+highway.MPG*city.mpg,data=train1)
+
+summary(modelI)
+
+AIC(modelI)
+
+ols_step_both_aic(modelI, details = T, progress = F)
+
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(modelI)              ## residual plot is somewhat normal distribution . There is no points that is low residual and high leverage. The model looks good
+```
+
+### making prediction with interaction model
+```{r}
+Predict_I = predict(modelI,test1)
+Predict_I = exp(Predict_I)
+Predict_I = as.data.frame(Predict_I)
+Predicted_I_N = cbind(test1$MSRP,Predict_I)
+names(Predicted_I_N)[1] = "test"
+names(Predicted_I_N)[2] = "prediction"
+```
+## metrics of interaction model
+```{r}
+MSE_I <- mse(Predicted_I_N$test, Predicted_I_N$prediction)
+MSE_I 
+
+AdjR2_I <- 1-(MSE_I/var(Predicted_I_N$test))
+AdjR2_I
+
+```
+
+## validation set prediction by inteaction model
+```{r}
+valid1<- valid1[!(valid1$Make %in% c("Plymouth")),] ### Need to drop Plymouth make because it was only on validation set
+
+Predict_IV = predict(modelI,valid1)
+Predict_IV = exp(Predict_IV)
+Predict_IV= as.data.frame(Predict_IV)
+Predicted_I_NV = cbind(valid1$MSRP,Predict_IV)
+names(Predicted_I_NV)[1] = "valid"
+names(Predicted_I_NV)[2] = "prediction"
+
+
+```
+
+##metrics of interaction model FOR Validation set
+```{r}
+MSE_I <- mse(Predicted_I_NV$valid, Predicted_I_NV$prediction)
+MSE_I 
+
+AdjR2_I <- 1-(MSE_I/var(Predicted_I_NV$valid))
+AdjR2_I
+
+
+```
+
+##plot actual vs predicted value Interaction
+```{r}
+plot(Predicted_I_N$test, Predicted_I_N$prediction, xlab = "Acutal test value",ylab="Interaction predicted value")
+abline(lm(Predicted_I_N$test~Predicted_I_N$prediction))
+
+```
+
+################################LASSO###############################################
+```{r}
+
+#x=model.matrix(MSRP~.,train1)[,-1]
+#y=log(train1$MSRP)
+
+#xtest<-model.matrix(MSRP~.,test1)[,-1]
+#ytest<-log(test1$MSRP)
+
+#xvalid<-model.matrix(MSRP~.,valid1)[,-1]    ##for validation set
+#yvalid<-log(valid1$MSRP)
+
+#grid=10^seq(10,-2, length =100)
+#lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
+
+#cv.out=cv.glmnet(x,y,alpha=1) #alpha=1 performs LASSO
+#plot(cv.out)
+
+```
+
+```{r}
+#bestlambda<-cv.out$lambda.min  
+#bestlambda
+```
+
+
+```{r}
+#lasso.pred=predict (lasso.mod ,s=bestlambda ,newx=xtest)
+#lasso.pred
+```
+
+```{r}
+#testMSE_LASSO<-mean((ytest-lasso.pred)^2)
+#testMSE_LASSO
+
+##0.03036748 ASE(MSE)
+```
+
+###MSE
+```{r}
+#lasso.pred =exp(lasso.pred)
+#lasso.pred= as.data.frame(lasso.pred)
+#LPredicted = cbind(test1$MSRP,lasso.pred)
+#names(LPredicted)[1] = "test"
+#names(LPredicted)[2] = "prediction"
+# head(LPredicted)
+# view(LPredicted)
+
+#mean((LPredicted$test-LPredicted$prediction)^2)
+ ##312204479
+```
+
+##metrics of lassomodel
+```{r}
+#SSE_L <- sse(LPredicted$test,LPredicted$prediction)
+#SSE_L
+
+#MSE_L <- mse(LPredicted$test, LPredicted$prediction)
+#MSE_L 
+
+#AdjR2_L <- 1-(MSE_Step/var(LPredicted$test))
+#AdjR2_L
+
+```
+
+```{r}
+#coef(lasso.mod,s=bestlambda)
+
+```
+
+## validation set prediction by lasso model
+```{r}
+
+
+#lasso.predV=predict (lasso.mod ,s=bestlambda ,newx=xvalid)
+#lasso.predV =exp(lasso.predV)
+#lasso.predV= as.data.frame(lasso.predV)
+#LPredictedV = cbind(valid1$MSRP,lasso.predV)
+#names(LPredictedV)[1] = "valid"
+#names(LPredictedV)[2] = "prediction"
+
+```
+
+##metrics of Lasso model FOR Validation set
+```{r}
+#SSE_I <- sse(LPredictedV$valid, LPredictedV$prediction)
+#SSE_I
+
+#MSE_I <- mse(LPredictedV$valid, LPredictedV$prediction)
+#MSE_I 
+
+#AdjR2_I <- 1-(MSE_Step/var(LPredictedV$valid1))
+#AdjR2_I
+
+
+```
+
+
+
+
+##plot actual vs predicted value laSSO
+```{r}
+#plot(test1$MSRP,LPredicted$prediction, xlab = "Acutal test value",ylab="Lasso predicted value")
+#abline(lm(test1$MSRP~LPredicted$prediction))
+
+```
+
+
+
+                    #########obj 2 KNN###################
+
+```{r}
+m1 <-train(log(MSRP)~.,data=train1,method='knn')
+m1
+plot(m1)
+```
+
+```{r}
+test_pred <- predict(m1, newdata = test1)
+test_pred= exp(test_pred)
+test_pred= as.data.frame(test_pred)
+KNNPredicted = cbind(test1$MSRP,test_pred)
+names(KNNPredicted)[1] = "test"
+names(KNNPredicted)[2] = "prediction"
+
+
+
+#head(KNNPredicted)
+## calcaulte MSE
+#mean((KNNPredicted$test-KNNPredicted$prediction)^2)
+# 95373406
+```
+
+##metrics of knn
+```{r, error=TRUE}
+MSE_K <- mse(KNNPredicted$test, KNNPredicted$prediction)
+MSE_K 
+
+AdjR2_K <- 1-(MSE_K/var(KNNPredicted$test))
+AdjR2_K
+
+AIC(m1)
+
+```
+
+## validation set prediction by KNN model
+```{r, error=TRUE}
+##valid1<- valid1[!(valid1$Make %in% c("Plymouth")),] ### Need to drop Plymouth make because it was only on validation set 
+
+test_predV <- predict(m1, newdata = valid1)
+test_predV= exp(test_predV)
+test_predV= as.data.frame(test_predV)
+KNNPredictedV= cbind(valid1$MSRP,test_predV)
+names(KNNPredictedV)[1] = "valid"
+names(KNNPredictedV)[2] = "prediction"
+
+```
+
+##metrics of knn for validation set
+```{r, error=TRUE}
+
+MSE_K <- mse(KNNPredictedV$valid, KNNPredictedV$prediction)
+MSE_K 
+
+AdjR2_K <- 1-(MSE_K/var(KNNPredictedV$valid))
+AdjR2_K
+
+```
+##plot
+```{r, error=TRUE}
+plot(test1$MSRP,KNNPredicted$prediction, xlab = "Acutal test value",ylab="KNN predicted value")
+
+abline(lm(test1$MSRP~KNNPredicted$prediction))
+
+
+```
+
+
+```{r, error=TRUE}
+PRESS <- function(model) {
+    i <- residuals(model)/(1 - lm.influence(model)$hat)
+    sum(i^2)
+}
+
+PRESS(modelI)
+PRESS(lasso.mod)
+
+```
+
+
+
+###################### PLOTS ########################
+
+
+```{r, error=TRUE}
+# assumption plots of final model (objective 1)
+
+summary(modelbackward)
+par(mfrow = c(2,2))
+plot(modelbackward)
+```
+
+```{r, error=TRUE}
+# correlation of MSRP and Popularity
+cars %>%
+  ggplot(aes(x = Popularity, y = log(MSRP))) +
+    geom_point() +
+    geom_smooth(method = "lm", colour = "red", se = FALSE)
+
+# visualize each variable against response variable (MSRP)
+cars %>%
+  gather(-MSRP, key = "var", value = "value") %>%
+  ggplot(aes(x = value, y = MSRP)) +
+    facet_wrap(~var, scales = "free") +
+    geom_point()
+
+# visualize change in car prices (MSRP) over time
+cars %>%
+  ggplot(aes(x = Year, y = MSRP)) +
+    geom_point()
+
+## There is a clear change (possibly in how the data is collected or calculated) in MSRP from years <= 2000 and >2000.  There are plenty of records on each side to complete our analysis so we will exclude all cars with "Year"<2000 as the "customer" is undoubtedly more interested in current/recent trends and correlations over the past 20 years rather than those older than 20 years.
+
+```
+
+```{r, error=TRUE}
+#visualizing MSRP distribution
+hist(cars2000$MSRP,main="MSRP Distribution")  ### since this is heavily right skewed
+
+# visualizing categorical variable 
+par(mar = c(5.5,15,4.1,2.1))
+barplot(plyr::count(cars2000,'Engine.Fuel.Type')[,2], names.arg=plyr::count(cars2000,'Engine.Fuel.Type')[,1], horiz=TRUE, col='red',las=1, main = "Engine fuel type")
+## more number of cars with regular unleaded gas
+
+# scatter plot for numeric variable
+pairs(~MSRP+Year+Popularity+Engine.HP+highway.MPG+city.mpg+Engine.Cylinders, data=cars2000)
+
+## Engine HP and MSRP is correlated 
+## city and highway mpg is highly correlated.
+
+hist(cars2000$MSRP,main="MSRP Distribution")  ## this is better distribution of MSRP
+```
+
+```{r, error=TRUE}
+par(mar = c(5.1,4.5,4.1,2.1))
+barplot(plyr::count(cars2000,'Engine.Cylinders')[,2], names.arg=plyr::count(cars2000,'Engine.Cylinders')[,1], horiz=TRUE, col='red',las=2, main = 'Number of Cylinders')
+
+```
+
+```{r, error=TRUE}
+### 4,6,8 are highest cyclinders
+
+#par(mfrow = c(2,2))
+#par(mar = c(5.1,15,4.1,2.1))
+#barplot(plyr::count(cars2000,'Transmission.Type')[,2], names.arg=plyr::count(cars2000,'Transmission.Type')[,1], horiz=TRUE, col='red',las=2, main = 'Transmission Type')
+#barplot(plyr::count(cars2000,'Number.of.Doors')[,2], names.arg=plyr::count(cars2000,'Number.of.Doors')[,1], horiz=TRUE, col='red',las=2, main = 'Number of Doors')
+#barplot(plyr::count(cars2000,'Driven_Wheels')[,2], names.arg=plyr::count(cars2000,'Driven_Wheels')[,1], horiz=TRUE, col='red',las=2, main = 'Driven Wheels')
+#barplot(plyr::count(cars2000,'Vehicle.Size')[,2], names.arg=plyr::count(cars2000,'Vehicle.Size')[,1], horiz=TRUE, col='red',las=2, main = 'Vehicle Size')
+#par(mar = c(5.1,10,4.1,2.1))
+#barplot(plyr::count(cars2000,'Vehicle.Style ')[,2], names.arg=plyr::count(cars2000,'Vehicle.Style ')[,1], horiz=TRUE, col='red',las=2, main = 'Vehicle Style ')
+```
+
+```{r, error=TRUE}
+
+# visualize change in car prices (MSRP) since 2000
+
+cars2000 %>%
+  ggplot(aes(x = Year, y = MSRP)) +
+    geom_point()
+
+# take log(MRSP)
+cars2000 %>%
+  ggplot(aes(x = Year, y = log(MSRP))) +
+  geom_point()
+
+# visualize all individual variable relationships to MSRP
+
+# engine.hp
+cars2000 %>%
+  ggplot(aes(x = Engine.HP, y = log(MSRP))) +
+  geom_point() +
+      geom_smooth(method = "lm", colour = "red", se = FALSE)
+
+# citympg
+
+cars2000 %>%
+  ggplot(aes(x = city.mpg, y = log(MSRP))) +
+  geom_point() +
+      geom_smooth(method = "lm", colour = "red", se = FALSE)
+
+# Number of Doors
+
+cars2000 %>%
+ggplot(aes(x=as.factor(Number.of.Doors), y=log(MSRP))) + 
+  geom_boxplot()
+
+
+# Transmission type
+
+cars2000 %>%
+ggplot(aes(x=as.factor(Transmission.Type), y=log(MSRP))) + 
+  geom_boxplot()
+
+# citympg
+
+cars2000 %>%
+  ggplot(aes(x = city.mpg, y = log(MSRP))) +
+  geom_point() +
+      geom_smooth(method = "lm", colour = "red", se = FALSE)
+
+pairs((cars2000[,c(1,2,3,4,10,11,12,13)]))
+ggpairs((cars2000[,c(1,2,3,4,10,11,12,13)]))
+plot_num(cars2000)
+
+
+
+```
